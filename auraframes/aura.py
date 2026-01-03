@@ -122,6 +122,75 @@ class Aura:
         message = self.sqsClient.receive_message(queue_url, wait_time_seconds=5)
         print(message)
 
+    def upload_video(self, frame_id: str, video_path: str, poster_path: str, duration: float, asset: Asset):
+        """
+        Upload a video file to a frame.
+        
+        This method uploads both a poster frame (thumbnail) and the video file to S3,
+        then updates the asset with video-specific metadata.
+        
+        :param frame_id: ID of the frame to upload to
+        :param video_path: Path to the video file
+        :param poster_path: Path to the poster/thumbnail JPEG image
+        :param duration: Video duration in seconds
+        :param asset: Asset object with metadata
+        """
+        try:
+            poster_image = Image.open(poster_path)
+        except Exception as e:
+            logger.error(f"Failed to open poster image {poster_path}: {e}")
+            return
+        
+        try:
+            # Step 1: Select asset on frame
+            local_identifier = asset.local_identifier
+            self.frame_api.select_asset(frame_id, AssetPartialId(local_identifier=local_identifier))
+            
+            # Step 2: Poll SQS
+            queue_url = self.get_sqs()
+            self.sqsClient.receive_message(queue_url, wait_time_seconds=5)
+            
+            # Step 3: Select asset again
+            self.frame_api.select_asset(frame_id, AssetPartialId(local_identifier=local_identifier))
+            
+            # Step 4: Upload poster frame to S3
+            s3_client = S3Client()
+            poster_data = open(poster_path, 'rb').read()
+            poster_filename, poster_md5 = s3_client.upload_file(poster_data, '.jpeg')
+            logger.info(f"Uploaded poster: {poster_filename}")
+            
+            # Step 5: Upload video to S3
+            video_data = open(video_path, 'rb').read()
+            video_filename, video_md5 = s3_client.upload_file(video_data, '.mp4')
+            logger.info(f"Uploaded video: {video_filename}")
+            
+            # Step 6: Update asset with video metadata
+            asset.file_name = poster_filename
+            asset.video_file_name = video_filename
+            asset.md5_hash = poster_md5
+            asset.height = poster_image.height
+            asset.width = poster_image.width
+            asset.duration = duration
+            asset.duration_unclipped = duration
+            asset.video_clip_start = 0
+            asset.video_clip_excludes_audio = False
+            asset.data_uti = "public.jpeg"  # For the poster
+            asset.is_live = 1
+            asset.ios_media_subtypes = 1048576  # Video media subtype
+            
+            # Step 7: Batch update asset
+            self.asset_api.batch_update(asset)
+            
+            # Step 8: Poll SQS again
+            message = self.sqsClient.receive_message(queue_url, wait_time_seconds=5)
+            logger.debug(f"SQS message: {message}")
+            
+            logger.info(f"Successfully uploaded video {video_path} to frame {frame_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to upload video: {e}")
+            raise
+
     def get_sqs(self):
         self.sqsClient = SQSClient()
         # TODO: Is this a hardcoded queue URL?

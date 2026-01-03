@@ -1,13 +1,15 @@
 from typing import Optional
+from pydantic import BaseModel
+from pydantic._internal._model_construction import ModelMetaclass
 
-import pydantic
 
-
-class AllOptional(pydantic.main.ModelMetaclass):
+class AllOptional(ModelMetaclass):
+    """Metaclass to make all fields optional"""
     def __new__(self, name, bases, namespaces, **kwargs):
         annotations = namespaces.get('__annotations__', {})
         for base in bases:
-            annotations.update(base.__annotations__)
+            if hasattr(base, '__annotations__'):
+                annotations.update(base.__annotations__)
         for field in annotations:
             if not field.startswith('__'):
                 annotations[field] = Optional[annotations[field]]

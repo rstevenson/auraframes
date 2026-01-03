@@ -32,7 +32,15 @@ class AssetApi(BaseApi):
                         'selected': True,
                         'taken_at': True,
                         'upload_priority': True,
-                        'width': True
+                        'width': True,
+                        # Video-specific fields
+                        'video_file_name': True,
+                        'duration': True,
+                        'duration_unclipped': True,
+                        'video_clip_start': True,
+                        'video_clip_excludes_audio': True,
+                        'ios_media_subtypes': True,
+                        'is_live': True,
                     })
             ]
         })

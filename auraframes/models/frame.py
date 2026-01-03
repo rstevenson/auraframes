@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Optional
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from auraframes.models.meta import AllOptional
 from auraframes.models.user import User
@@ -15,6 +15,8 @@ class Feature(Enum):
 
 
 class Frame(BaseModel):
+    model_config = ConfigDict(extra='ignore')  # Ignore extra fields from API
+    
     id: str
     name: str
     user_id: str
@@ -71,7 +73,7 @@ class Frame(BaseModel):
     representative_asset_id: Optional[str]
     sort_mode: Optional[str]
     email_address: str
-    features: Optional[list[Feature]]
+    features: Optional[list[str]]  # Changed from Feature enum to str to allow any feature
     letterbox_style: Optional[str]
     user: User
     playlists: list[dict]  # TODO
